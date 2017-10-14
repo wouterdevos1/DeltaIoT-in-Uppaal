@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+
+
+
+clock Clock;
+chan freeslot;
+
+int cycle = 536;
+
+double totalEnergyConsumption;
+
+int turn = 0;
+int turnOrder[15] = { 8, 10, 13, 14, 15, 5, 6, 11, 12, 9, 7, 2, 3, 4, 1};
+
+
+double powerConsumptionRate[16] = { 20.2, 21.2, 22.3, 23.7, 24.7, 26.1, 27.5, 28.8, 30.0, 31.2, 32.4, 33.7, 35.1, 36.5, 38.0, 38.9 };
+
+
+//int ID, int trafficProbability, int load = 10, int maxbuffer = 10; int maxsendQueue = 40; int maxreceiveQueue = 60; 
+int motes[16][6] = {
+{0,0,0,0,0,30000},
+{1, 0, 10, 10, 40, 60},
+{2, 50, 10, 10, 40, 60},
+{3, 100, 10, 10, 40, 60},
+{4, 50, 10, 10, 40, 60},
+{5, 50, 10, 10, 40, 60},
+{6, 100, 10, 10, 40, 60},
+{7, 50, 10, 10, 40, 60},
+{8, 100, 10, 10, 40, 60},
+{9, 100, 10, 10, 40, 60},
+{10, 50, 10, 10, 40, 60},
+{11, 50, 10, 10, 40, 60},
+{12, 50, 10, 10, 40, 60},
+{13, 50, 10, 10, 40, 60},
+{14, 50, 10, 10, 40, 60},
+{15, 100, 10, 10, 40, 60}
+};
+
+
+// int moteId, int ParentId, int a  (maal 10000), int b (maal 10000)
+int linksSNR[18][4] = {
+{1, 0, 0, 0},
+{2, 4, 169, 7407},
+{3, 1, 4982, 1246},
+{4, 1, 8282, -8124},
+{5, 9, 4932, -4489},
+{6, 4, 6199, -9805},
+{7, 2, 5398, -2054},
+{7, 3, 5855, -6644},
+{8, 1, 5298, -103},
+{9, 1, 8284, -7289},
+{10, 5, 6463, -3003},
+{10, 6, 8219, -7333},
+{11, 7, 7140, -3198},
+{12, 3, 1000, 6000},
+{12, 7, 9254, -1621},
+{13, 11, 6078, -3600},
+{14, 12, 4886, -4770},
+{15, 12, 5899, -7189}
+};
+
+int receiveQueue[16] = {0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+
+int test = 0;
+
+int castDoubleToInt(double value){
+	double j;
+    int k=0;
+	for(j=value;j&gt;=1;j=j-1){
+	k++;
+	}
+	return k;
+}</declaration>
+	<template>
+		<name x="5" y="5">Mote</name>
+		<declaration>// Place local declarations here.
+
+int MoteId;
+int p;
+int np;
+int load = 10;
+int sendBuffer = 40;
+int receiveBuffer = 60;
+int sendQueue = 0;
+int buffer = 0;
+
+int testSNR = 0;
+
+
+void initialize() {
+    buffer = 0;
+    MoteId = turn;
+    p = motes[MoteId][1];
+    np = 100-p;
+    load = motes[MoteId][2];
+    receiveBuffer = motes[MoteId][5];
+    sendBuffer =  motes[MoteId][4];
+}
+
+void queue() {
+    sendQueue = buffer;
+    if (receiveQueue[MoteId] &gt; 0) {
+        if (sendBuffer-sendQueue &lt; receiveQueue[MoteId]) {
+            sendQueue += sendBuffer-sendQueue;
+            receiveQueue[MoteId] -= (sendQueue-buffer);
+        }
+        else {
+            sendQueue += receiveQueue[MoteId];
+            receiveQueue[MoteId] = 0;
+        }
+    }
+    
+}
+
+void sendTo(int mote, int amount) {
+    if (motes[mote][5] &gt;= receiveQueue[mote] + amount)
+        receiveQueue[mote] += amount;
+    else
+        receiveQueue[mote] = motes[mote][5];
+}
+
+void send() { 
+    int i = 0;
+    for(i : int[0,16]) {
+        if (linksSNR[i][0] == MoteId) {            
+            double power = 0.258 * powerConsumptionRate[15] / 1000;
+            double a;
+            double b;
+            double SNR;
+
+            totalEnergyConsumption = totalEnergyConsumption + power;
+            a = linksSNR[i][2]/10000;
+            b = linksSNR[i][3]/10000;
+            SNR = a * power + b;            
+
+            if (SNR &gt;= 0) {    //Bug: Dit geeft altijd TRUE, ongeacht de waarde SNR.  Er gebeurt dus nooit packet loss
+                sendTo(linksSNR[i][1], sendQueue);          
+            }  
+            else if (SNR &gt;=-20 and SNR &lt;= 0) {
+                sendTo(linksSNR[i][1], castDoubleToInt( sendQueue * ((SNR*100)/20)/100));      
+            }     
+        }
+    }
+}
+
+</declaration>
+		<location id="id0" x="-544" y="-102">
+			<name x="-527" y="-127">sent</name>
+			<committed/>
+		</location>
+		<location id="id1" x="-544" y="34">
+			<name x="-629" y="43">communicating</name>
+			<committed/>
+		</location>
+		<location id="id2" x="-187" y="34">
+			<name x="-230" y="42">Queueing</name>
+			<committed/>
+		</location>
+		<location id="id3" x="25" y="34">
+			<name x="25" y="0">GeneratingTraffic</name>
+			<committed/>
+		</location>
+		<location id="id4" x="-85" y="-187">
+			<name x="-102" y="-221">active</name>
+			<committed/>
+		</location>
+		<location id="id5" x="-544" y="-187">
+			<name x="-554" y="-221">idle</name>
+		</location>
+		<branchpoint id="id6" x="-85" y="-59">
+		</branchpoint>
+		<init ref="id5"/>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id5"/>
+		</transition>
+		<transition>
+			<source ref="id2"/>
+			<target ref="id1"/>
+			<label kind="assignment" x="-399" y="42">queue()</label>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id0"/>
+			<label kind="assignment" x="-586" y="-42">send()</label>
+		</transition>
+		<transition>
+			<source ref="id3"/>
+			<target ref="id2"/>
+			<label kind="assignment" x="-102" y="34">buffer = load</label>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id2"/>
+			<label kind="probability" x="-161" y="-51">100-p</label>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id3"/>
+			<label kind="probability" x="-51" y="-51">p</label>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id6"/>
+		</transition>
+		<transition>
+			<source ref="id5"/>
+			<target ref="id4"/>
+			<label kind="synchronisation" x="-459" y="-212">freeslot?</label>
+			<label kind="assignment" x="-425" y="-187">initialize()</label>
+		</transition>
+	</template>
+	<template>
+		<name>Timer</name>
+		<declaration>int index = 0;</declaration>
+		<location id="id7" x="-790" y="-119">
+		</location>
+		<location id="id8" x="-833" y="-212">
+			<name x="-858" y="-246">loop</name>
+			<label kind="invariant" x="-909" y="-221">Clock&lt;=2</label>
+		</location>
+		<init ref="id8"/>
+		<transition>
+			<source ref="id7"/>
+			<target ref="id8"/>
+			<label kind="guard" x="-867" y="-153">cycle&gt;0</label>
+			<nail x="-824" y="-161"/>
+		</transition>
+		<transition>
+			<source ref="id8"/>
+			<target ref="id7"/>
+			<label kind="guard" x="-773" y="-280">Clock&gt;=2</label>
+			<label kind="synchronisation" x="-705" y="-119">freeslot!</label>
+			<label kind="assignment" x="-705" y="-221">turn=turnOrder[index],
+index++,
+index %= 15,
+cycle--</label>
+			<nail x="-714" y="-246"/>
+			<nail x="-714" y="-110"/>
+		</transition>
+	</template>
+	<system>// Place template instantiations here.
+
+mote = Mote();
+timer = Timer();
+
+// List one or more processes to be composed into a system.
+system mote, timer;
+    </system>
+	<queries>
+		<query>
+			<formula>E&lt;&gt; totalEnergyConsumption &gt; 2
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>E&lt;&gt; mote.sent and receiveQueue[0]&gt;0
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>A&lt;&gt; mote.sent and Clock&lt;=2
+			</formula>
+			<comment>
+			</comment>
+		</query>
+	</queries>
+</nta>
